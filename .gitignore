@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.ruff_cache/
+.ipynb_checkpoints/
+.DS_Store
+resultados/modelo_final.joblib
+resultados_smoke/
+acceso/
+.env
+.env.*
+web/node_modules/
+web/.next/
+web/.env*
+Entrega_Certamen1_Grupo14.zip

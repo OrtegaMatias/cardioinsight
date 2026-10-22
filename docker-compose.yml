@@ -1,0 +1,45 @@
+# CardioInsight: proyecto, red, puerto e imágenes propios. No modifica otras aplicaciones.
+name: cardioinsight
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    user: "${CARDIO_UID:-1000}:${CARDIO_GID:-1000}"
+    environment:
+      RESULTADOS_DIR: /app/resultados
+      MODEL_PATH: /app/resultados/modelo_inferencia.joblib
+      ARCHIVO_CLAVE: /app/acceso/clave
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    volumes:
+      - ./resultados:/app/resultados:ro
+      - ./acceso:/app/acceso:ro
+    restart: unless-stopped
+    networks: [cardioinsight]
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 128
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    build:
+      context: ./web
+    depends_on: [api]
+    restart: unless-stopped
+    networks: [cardioinsight]
+    ports:
+      - "127.0.0.1:8091:3000"
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  cardioinsight:
+    name: cardioinsight
