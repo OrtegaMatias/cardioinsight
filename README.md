@@ -102,7 +102,7 @@ cd ~/cardioinsight && git pull
 sudo docker compose up -d --build
 ```
 
-La ruta de Cloudflare Tunnel `cardioinsight.cvdi.cl` debe apuntar a `http://localhost:8091` y mantenerse separada de las rutas existentes. Leer la clave vigente **solo por SSH** con `cat ~/cardioinsight/acceso/clave`. Para rotarla manualmente, ejecutar `~/cardioinsight/scripts/rotar-clave.sh`; al cambiarla se invalidan las sesiones existentes. Rotación diaria opcional (crontab del usuario del servidor): `0 5 * * * $HOME/cardioinsight/scripts/rotar-clave.sh >/dev/null`. No publicar claves ni cookies.
+La ruta de Cloudflare Tunnel `cardioinsight.cvdi.cl` debe apuntar a `http://localhost:8091` y mantenerse separada de las rutas existentes. Leer la clave vigente **solo por SSH** con `cat ~/cardioinsight/acceso/clave`. Para rotarla manualmente, ejecutar `~/cardioinsight/scripts/rotar-clave.sh`; al cambiarla se invalidan las sesiones existentes. En el servidor está configurada la rotación diaria a las 05:17 mediante `17 5 * * * /home/namonaque/cardioinsight/scripts/rotar-clave.sh >/dev/null 2>&1`, sin modificar la rotación de NeuroLens a las 05:00. No publicar claves ni cookies.
 
 Para regenerar el artefacto versionado tras entrenar de nuevo (sin volver a entrenar):
 
