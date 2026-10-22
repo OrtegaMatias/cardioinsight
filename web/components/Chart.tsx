@@ -13,12 +13,12 @@ export default function Chart({ title, description, traces, xTitle, yTitle, heig
     <Plot
       data={traces}
       layout={{
-        title: { text: title, font: { color: '#142d46', size: 17 } },
+        title: { text: title, font: { color: '#0c2c4a', size: 17 } },
         paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
-        font: { family: 'Arial, sans-serif', color: '#37536b', size: 12 },
+        font: { family: 'Avenir Next, Arial, sans-serif', color: '#5d6e7b', size: 12 },
         margin: { l: 60, r: 25, t: 68, b: 65 },
-        xaxis: { title: { text: xTitle }, gridcolor: '#e5edf2', zeroline: false },
-        yaxis: { title: { text: yTitle }, gridcolor: '#e5edf2', zeroline: false },
+        xaxis: { title: { text: xTitle }, gridcolor: '#e8edf3', zeroline: false },
+        yaxis: { title: { text: yTitle }, gridcolor: '#e8edf3', zeroline: false },
         legend: { orientation: 'h', y: 1.12, x: 0 },
         hovermode: 'closest', autosize: true, height,
         ...layout,

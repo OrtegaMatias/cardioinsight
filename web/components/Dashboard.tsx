@@ -9,7 +9,7 @@ import { cost, fixed, integer, money, percent, precision, prepare, recall, simul
 import type { Comparison, DashboardData, Sensitivity, Strategy } from '@/lib/types';
 
 const tabs = ['Resumen del experimento', 'Comparación de modelos', 'Modelo elegido', 'Costos y matriz', 'Sensibilidad', 'Calibración', 'ROC e iso-costo'];
-const palette = { teal: '#168c8c', navy: '#142d46', blue: '#5393ce', coral: '#e77669', amber: '#d99a27', gray: '#75879a' };
+const palette = { teal: '#00a199', navy: '#0c2c4a', blue: '#0e64b4', coral: '#e07a5f', amber: '#f0a43a', gray: '#8595a1' };
 const metric = (label: string, value: string, detail?: string) => <div className="metric" key={label}><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</div>;
 const float = (value: number | string) => typeof value === 'number' ? fixed(value) : value;
 const modelColumns: Column<Comparison>[] = [
@@ -37,11 +37,11 @@ export default function Dashboard({ data }: { data: DashboardData }) {
   const current = prepared.counts(threshold);
   const r = data.resumen;
   const bestStrategy = data.estrategias.reduce((best, item) => item.Costo_total < best.Costo_total ? item : best);
-  const chartColors = [palette.teal, palette.blue, '#3ba58b', palette.coral, palette.gray];
+  const chartColors = [palette.teal, palette.blue, '#1f9d6b', palette.coral, palette.gray];
 
   return <div className="executive-shell">
     <header className="site-header">
-      <div className="site-brand"><span className="brand-symbol" aria-hidden="true">＋</span><div><strong>cardio<span>insight</span></strong><small>ANALÍTICA PARA DECIDIR</small></div></div>
+      <div className="site-brand"><span className="brand-symbol" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M2 17h7l3-7 6 14 4-7h8" /></svg></span><div><strong>cardio<span>insight</span></strong><small>ANALÍTICA PARA DECIDIR</small></div></div>
       <div className="university-mark"><img src="/udd-logo.png" alt="Universidad del Desarrollo" width={640} height={160} /></div>
       <nav className="site-nav" aria-label="Navegación principal">
         <button type="button" className={mode === 'decision' ? 'active' : ''} aria-current={mode === 'decision' ? 'page' : undefined} onClick={() => setMode('decision')}>Decisión</button>
@@ -76,8 +76,8 @@ export default function Dashboard({ data }: { data: DashboardData }) {
         </section>}
         {tab === 3 && <section className="section-content"><div className="section-intro"><span className="eyebrow">04 / SIMULADOR</span><h2>El costo de mover el umbral</h2><p>Explora los conteos de test con los costos hipotéticos y el umbral elegidos. Los datos de test ilustran, pero no seleccionan el umbral reportable.</p></div><div className="metric-grid four">{metric('Recall', percent(recall(current)))}{metric('Precisión', percent(precision(current)))}{metric('Costo total hipotético', money(cost(current, cfp, cfn)))}{metric('Ahorro vs. corte 0,5', money(simulated.base - cost(current, cfp, cfn)))}</div>
           <div className="two-columns cost-layout"><Chart title="Costo total estimado según umbral" description={`La línea de mínimo en test (${fixed(simulated.minPoint.threshold, 2)}) es solo retrospectiva. El umbral seleccionado con CV/train es ${fixed(r.umbral_empirico, 2)}.`} xTitle="Umbral de decisión" yTitle="Costo hipotético (CLP)" layout={{ hovermode: 'x unified' }} height={440} traces={[
-            { type: 'scatter', mode: 'lines', name: 'Costo total', x: prepared.curve.map(point => point.threshold), y: prepared.curve.map(point => cost(point.counts, cfp, cfn)), line: { color: palette.teal, width: 3 }, fill: 'tozeroy', fillcolor: 'rgba(22,140,140,.08)' },
-            ...([[0.5, 'Corte 0,5', palette.gray], [simulated.theoretical, 'Teórico p*', '#3ba58b'], [simulated.minPoint.threshold, 'Mínimo test', palette.coral], [r.umbral_empirico, 'CV/train', palette.blue], [threshold, 'Corte actual', palette.navy]] as [number, string, string][]).map(([point, name, color]) => ({ type: 'scatter' as const, mode: 'lines' as const, name, x: [point, point], y: [0, Math.max(...prepared.curve.map(row => cost(row.counts, cfp, cfn)))], line: { color, dash: 'dash' as const, width: 2 }, hoverinfo: 'name' as const })),
+            { type: 'scatter', mode: 'lines', name: 'Costo total', x: prepared.curve.map(point => point.threshold), y: prepared.curve.map(point => cost(point.counts, cfp, cfn)), line: { color: palette.teal, width: 3 }, fill: 'tozeroy', fillcolor: 'rgba(0,161,153,.08)' },
+            ...([[0.5, 'Corte 0,5', palette.gray], [simulated.theoretical, 'Teórico p*', '#1f9d6b'], [simulated.minPoint.threshold, 'Mínimo test', palette.coral], [r.umbral_empirico, 'CV/train', palette.blue], [threshold, 'Corte actual', palette.navy]] as [number, string, string][]).map(([point, name, color]) => ({ type: 'scatter' as const, mode: 'lines' as const, name, x: [point, point], y: [0, Math.max(...prepared.curve.map(row => cost(row.counts, cfp, cfn)))], line: { color, dash: 'dash' as const, width: 2 }, hoverinfo: 'name' as const })),
           ]} />
           <div><h3>Matriz de confusión · corte {fixed(threshold, 2)}</h3><div className="matrix"><span className="matrix-corner">Real ↓ / Predicho →</span><span>Predicho sin evento</span><span>Predicho con evento</span><span>Real sin evento</span><div className="matrix-cell matrix-0"><strong>VN · {integer(current.vn)}</strong><small>Sin costo directo</small></div><div className="matrix-cell matrix-1"><strong>FP · {integer(current.fp)}</strong><small>{money(cfp * current.fp)}</small></div><span>Real con evento</span><div className="matrix-cell matrix-2"><strong>FN · {integer(current.fn)}</strong><small>{money(cfn * current.fn)}</small></div><div className="matrix-cell matrix-3"><strong>VP · {integer(current.vp)}</strong><small>Sin costo directo</small></div></div><p className="muted">Costo FP {money(cfp * current.fp)} · costo FN {money(cfn * current.fn)}.</p></div></div>
           <h3>Estrategias con los costos actuales</h3><DataTable rows={simulated.rows} columns={strategyColumns} caption="Comparación hipotética según los costos actuales" /><div className="notice"><strong>Test no decide el umbral reportable.</strong> El mínimo de la curva ({fixed(simulated.minPoint.threshold, 2)}) se calculó retrospectivamente sobre test solo para ilustrar. El umbral empírico reportable fue seleccionado con validación cruzada usando únicamente train ({fixed(r.umbral_empirico, 2)}); test confirma su resultado una vez. El costo teórico presupone probabilidades calibradas.</div>
