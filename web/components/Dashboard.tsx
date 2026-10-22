@@ -25,9 +25,7 @@ const strategyColumns: Column<Strategy>[] = [
   { key: 'Ahorro_vs_0_5', label: 'Ahorro vs 0,5', format: (value) => money(Number(value)) },
 ];
 
-export default function Dashboard({ data, onLogout, onExpired, pending, error }: {
-  data: DashboardData; onLogout: () => void; onExpired: () => void; pending: boolean; error: string;
-}) {
+export default function Dashboard({ data }: { data: DashboardData }) {
   const [mode, setMode] = useState<'decision' | 'evidence' | 'individual'>('decision');
   const [tab, setTab] = useState(0);
   const [cfp, setCfp] = useState(data.resumen.c_fp);
@@ -50,9 +48,7 @@ export default function Dashboard({ data, onLogout, onExpired, pending, error }:
         <button type="button" className={mode === 'evidence' ? 'active' : ''} aria-current={mode === 'evidence' ? 'page' : undefined} onClick={() => setMode('evidence')}>Evidencia</button>
         <button type="button" className={mode === 'individual' ? 'active' : ''} aria-current={mode === 'individual' ? 'page' : undefined} onClick={() => setMode('individual')}>Simulación individual</button>
       </nav>
-      <button type="button" className="signout" onClick={onLogout} disabled={pending}>Salir <span aria-hidden="true">↗</span></button>
     </header>
-    {error && <p role="alert" className="error-banner">{error}</p>}
     <main className="executive-main">
       {mode === 'decision' && <DecisionPanel prepared={prepared} summary={r} costFP={cfp} costFN={cfn} threshold={threshold} exploring={exploring} onExploring={setExploring} onCostFP={setCfp} onCostFN={setCfn} onThreshold={setThreshold} onEvidence={() => { setTab(3); setMode('evidence'); }} />}
       {mode === 'evidence' && <section className="evidence" aria-labelledby="evidence-title">
@@ -116,7 +112,7 @@ export default function Dashboard({ data, onLogout, onExpired, pending, error }:
         </section>}
         </div>
       </section>}
-      {mode === 'individual' && <div className="individual-view"><IndividualForm validatedThreshold={r.umbral_empirico} manualThreshold={threshold} onExpired={onExpired} /></div>}
+      {mode === 'individual' && <div className="individual-view"><IndividualForm validatedThreshold={r.umbral_empirico} manualThreshold={threshold} /></div>}
     </main>
     <footer className="site-footer"><span>CardioInsight · Grupo 14 · Joaquín Rivas y Matías Ortega</span><span>BRFSS 2015 · Prototipo académico, no diagnóstico ni indicación de tratamiento.</span></footer>
   </div>;

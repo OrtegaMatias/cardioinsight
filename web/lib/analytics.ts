@@ -20,7 +20,7 @@ export const cost = (c: Counts, cfp: number, cfn: number) => cfp * c.fp + cfn * 
 
 export function prepare(data: DashboardData): Prepared {
   const { y_true: labels, proba: probabilities, proba_B: weighted } = data.datos_dashboard;
-  // Index sorting is done once per authenticated payload; chart controls only recompute costs.
+  // Sort once per loaded dashboard; chart controls only recompute costs.
   const descending = Array.from(probabilities.keys()).sort((a, b) => probabilities[b] - probabilities[a] || a - b);
   const positive = labels.reduce((sum, y) => sum + (y === 1 ? 1 : 0), 0);
   const negative = labels.length - positive;

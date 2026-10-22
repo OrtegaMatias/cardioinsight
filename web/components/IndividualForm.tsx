@@ -18,7 +18,7 @@ const names = [...binaryFields.map(([name]) => name), 'BMI', 'Diabetes', 'GenHlt
 type FeatureName = typeof names[number];
 type Prediction = { probability: number; decision: boolean; threshold: number; label: string; notice: string };
 
-export default function IndividualForm({ validatedThreshold, manualThreshold, onExpired }: { validatedThreshold: number; manualThreshold: number; onExpired: () => void }) {
+export default function IndividualForm({ validatedThreshold, manualThreshold }: { validatedThreshold: number; manualThreshold: number }) {
   const [values, setValues] = useState<Partial<Record<FeatureName, string>>>({});
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [pending, setPending] = useState(false);
@@ -38,7 +38,6 @@ export default function IndividualForm({ validatedThreshold, manualThreshold, on
         method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', credentials: 'same-origin',
         body: JSON.stringify({ features, threshold }),
       });
-      if (response.status === 401) { onExpired(); return; }
       if (!response.ok) {
         setError(response.status === 422 ? 'Revisa los valores del formulario y vuelve a intentar.' : 'No fue posible calcular esta simulación. Intenta nuevamente.');
         return;

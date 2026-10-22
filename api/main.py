@@ -1,28 +1,20 @@
-"""API privada para el reporte histórico y la simulación educativa BRFSS.
+"""API pública de resultados históricos y simulación educativa BRFSS.
 
-Los archivos de resultados y el modelo son datos locales de confianza montados en el
-servidor; jamás se envían al navegador salvo los resultados JSON explícitos.
+Los archivos de resultados y el modelo son artefactos locales de confianza;
+la inferencia acepta solo las variables y rangos explícitos del formulario.
 """
 
-import base64
-from collections import OrderedDict, deque
 import csv
-from datetime import datetime, timezone
 from functools import lru_cache
-import hashlib
-import hmac
 import json
-from ipaddress import ip_address
 import math
 import os
 from pathlib import Path
 import re
-import secrets
 from threading import Lock
-from time import monotonic
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictInt
@@ -30,13 +22,6 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictInt
 
 RESULTADOS_DIR = Path(os.environ.get("RESULTADOS_DIR", "/app/resultados"))
 MODEL_PATH = Path(os.environ.get("MODEL_PATH", "/app/resultados/modelo_inferencia.joblib"))
-ARCHIVO_CLAVE = Path(os.environ.get("ARCHIVO_CLAVE", "/app/acceso/clave"))
-COOKIE_NAME = "cardioinsight_session"
-SESSION_SECONDS = 8 * 60 * 60
-ACCESS_WINDOW_SECONDS = 10 * 60
-PER_CLIENT_FAILURE_LIMIT = 5
-GLOBAL_FAILURE_LIMIT = 30
-MAX_ACCESS_CLIENTS = 1024
 MAX_BODY_BYTES = 8192
 NOTICE = (
     "Simulación educativa con datos BRFSS 2015; no es un diagnóstico, no recomienda "
@@ -48,7 +33,7 @@ app = FastAPI(title="CardioInsight API", docs_url=None, redoc_url=None, openapi_
 
 @app.middleware("http")
 async def protect_http(request: Request, call_next):
-    if request.url.path in ("/api/access", "/api/predict"):
+    if request.url.path == "/api/predict":
         length = request.headers.get("content-length")
         if length is not None and (not length.isdigit() or int(length) > MAX_BODY_BYTES):
             return JSONResponse({"detail": "Solicitud demasiado grande."}, status_code=413)
@@ -74,121 +59,6 @@ async def validation_error(_request: Request, _exc: RequestValidationError):
         status_code=422,
         headers={"Cache-Control": "no-store"},
     )
-
-
-def _key_bytes() -> bytes:
-    try:
-        with ARCHIVO_CLAVE.open("rb") as source:
-            raw = source.read(4097)
-        if len(raw) > 4096:
-            raise ValueError("oversized key")
-        key = raw.rstrip(b"\r\n")
-        # A random 32+ character password is expected (not a human-chosen password).
-        if not 24 <= len(key) <= 256 or any(c < 33 or c > 126 for c in key):
-            raise ValueError("invalid key")
-    except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=503, detail="Acceso temporalmente no disponible.") from exc
-    return key
-
-
-def _signing_key(key: bytes) -> bytes:
-    return hmac.digest(key, b"cardioinsight-session-v1", "sha256")
-
-
-def _encode_session(key: bytes) -> str:
-    issued = str(int(datetime.now(timezone.utc).timestamp()))
-    nonce = base64.urlsafe_b64encode(secrets.token_bytes(16)).rstrip(b"=").decode("ascii")
-    message = f"{issued}.{nonce}"
-    signature = base64.urlsafe_b64encode(
-        hmac.digest(_signing_key(key), message.encode("ascii"), "sha256")
-    ).rstrip(b"=").decode("ascii")
-    return f"{message}.{signature}"
-
-
-def _valid_session(token: str | None, key: bytes) -> bool:
-    if not token or not re.fullmatch(r"[0-9]{10,12}\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}", token):
-        return False
-    issued, nonce, signature = token.split(".")
-    now = int(datetime.now(timezone.utc).timestamp())
-    if not 0 <= now - int(issued) <= SESSION_SECONDS:
-        return False
-    expected = base64.urlsafe_b64encode(
-        hmac.digest(_signing_key(key), f"{issued}.{nonce}".encode("ascii"), "sha256")
-    ).rstrip(b"=").decode("ascii")
-    return hmac.compare_digest(signature, expected)
-
-
-def require_session(request: Request) -> None:
-    if not _valid_session(request.cookies.get(COOKIE_NAME), _key_bytes()):
-        raise HTTPException(status_code=401, detail="Se requiere una clave de acceso vigente.")
-
-
-class AccessRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    key: str = Field(min_length=1, max_length=256)
-
-
-# CF-Connecting-IP is set by Cloudflare Tunnel; the origin is reachable only
-# through the local Next.js proxy. Keep a global ceiling for forged headers.
-_failures: OrderedDict[str, deque[float]] = OrderedDict()
-_all_failures: deque[float] = deque()
-_failure_lock = Lock()
-
-
-def _check_and_record_attempt(client: str, valid: bool) -> bool:
-    now = monotonic()
-    with _failure_lock:
-        while _all_failures and now - _all_failures[0] >= ACCESS_WINDOW_SECONDS:
-            _all_failures.popleft()
-        events = _failures.get(client)
-        if events is None:
-            if len(_failures) >= MAX_ACCESS_CLIENTS:
-                _failures.popitem(last=False)
-            events = deque()
-            _failures[client] = events
-        else:
-            _failures.move_to_end(client)
-        while events and now - events[0] >= ACCESS_WINDOW_SECONDS:
-            events.popleft()
-        if valid:
-            return True  # bad guesses must never lock out someone holding the actual key
-        if len(events) >= PER_CLIENT_FAILURE_LIMIT or len(_all_failures) >= GLOBAL_FAILURE_LIMIT:
-            return False
-        events.append(now)
-        _all_failures.append(now)
-        return True
-
-
-@app.get("/api/session")
-def session(request: Request):
-    return {"authenticated": _valid_session(request.cookies.get(COOKIE_NAME), _key_bytes())}
-
-
-@app.post("/api/access")
-def access(body: AccessRequest, request: Request, response: Response):
-    key = _key_bytes()
-    provided = body.key.encode("utf-8")
-    valid = hmac.compare_digest(hashlib.sha256(provided).digest(), hashlib.sha256(key).digest())
-    client = request.headers.get("cf-connecting-ip", "")
-    try:
-        client = str(ip_address(client))
-    except ValueError:
-        client = request.client.host if request.client is not None else "unknown"
-    if not _check_and_record_attempt(client, valid):
-        raise HTTPException(status_code=429, detail="Demasiados intentos. Pruebe más tarde.")
-    if not valid:
-        raise HTTPException(status_code=401, detail="Clave incorrecta.")
-    response.set_cookie(
-        COOKIE_NAME, _encode_session(key), max_age=SESSION_SECONDS, path="/",
-        secure=True, httponly=True, samesite="strict",
-    )
-    return {"authenticated": True}
-
-
-@app.post("/api/logout")
-def logout(response: Response):
-    response.delete_cookie(COOKIE_NAME, path="/", secure=True, httponly=True, samesite="strict")
-    return {"authenticated": False}
 
 
 TABLES = ("comparacion", "tabla_cv", "importancias", "estrategias", "sensibilidad")
@@ -282,7 +152,7 @@ def _dashboard_bytes() -> bytes:
     return _dashboard_json
 
 
-@app.get("/api/dashboard", dependencies=[Depends(require_session)])
+@app.get("/api/dashboard")
 def dashboard():
     return Response(content=_dashboard_bytes(), media_type="application/json")
 
@@ -374,7 +244,7 @@ def _prediction_model():
     return _model
 
 
-@app.post("/api/predict", dependencies=[Depends(require_session)])
+@app.post("/api/predict")
 def predict(body: PredictRequest):
     if "threshold" in body.model_fields_set and body.threshold is None:
         raise HTTPException(status_code=422, detail="Revise los campos y sus rangos permitidos.")

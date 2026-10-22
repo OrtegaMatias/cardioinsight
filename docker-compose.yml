@@ -10,13 +10,11 @@ services:
     environment:
       RESULTADOS_DIR: /app/resultados
       MODEL_PATH: /app/resultados/modelo_inferencia.joblib
-      ARCHIVO_CLAVE: /app/acceso/clave
       OMP_NUM_THREADS: "1"
       OPENBLAS_NUM_THREADS: "1"
       MKL_NUM_THREADS: "1"
     volumes:
       - ./resultados:/app/resultados:ro
-      - ./acceso:/app/acceso:ro
     restart: unless-stopped
     networks: [cardioinsight]
     mem_limit: 2g

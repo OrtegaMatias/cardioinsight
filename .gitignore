@@ -5,7 +5,6 @@ __pycache__/
 .DS_Store
 resultados/modelo_final.joblib
 resultados_smoke/
-acceso/
 .env
 .env.*
 web/node_modules/

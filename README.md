@@ -69,24 +69,23 @@ Las respuestas idénticas se conservan: BRFSS no incluye un identificador que pe
 
 ## Aplicación web
 
-El dashboard original `app.py` sigue disponible para reproducir la entrega de Streamlit. La aplicación para `https://cardioinsight.cvdi.cl` utiliza **Next.js** (`web/`) y **FastAPI** (`api/`) con un Compose independiente. La portada y el encabezado muestran el logo UDD reutilizado del proyecto de IA para la gestión industrial.
+El dashboard original `app.py` sigue disponible para reproducir la entrega de Streamlit. La aplicación para `https://cardioinsight.cvdi.cl` utiliza **Next.js** (`web/`) y **FastAPI** (`api/`) con un Compose independiente. El encabezado muestra el logo UDD reutilizado del proyecto de IA para la gestión industrial.
 
 La pantalla inicial es un **dashboard gerencial centrado en datos**: controles de costos FP/FN y umbral, KPIs de costo total, comparación frente a 0,50, recall y precisión; curva interactiva de costo y matriz de confusión; debajo, tabla comparativa del corte de referencia y el escenario actual, y límites de interpretación. En móvil los KPI y gráficos aparecen antes de los controles desplegables. «Evidencia» conserva los siete análisis del certamen y «Simulación individual» ofrece el formulario educativo de 21 variables.
 
 El corte 0,10 fue seleccionado con train/CV para los costos originales; alterar los costos **no** selecciona ni valida un nuevo corte. La curva y los conteos en test son retrospectivos, no ahorros proyectados ni riesgos clínicos individuales. La app no diagnostica ni recomienda tratamientos.
 
-Toda la app exige una clave rotativa. El backend comprueba las sesiones en cada solicitud de datos o inferencia; la cookie es `HttpOnly` y `Secure`. La **clave no está en GitHub**. `resultados/modelo_inferencia.joblib` sí está versionado: es el pipeline entrenado reducido para inferencia (~16 MB), sin datos de visitantes. El paquete completo `resultados/modelo_final.joblib` (~100 MB) se conserva solo en local y se ignora en Git. La app no guarda respuestas del formulario ni entradas del simulador; infraestructura externa como Cloudflare puede mantener registros operativos según su configuración.
+El dashboard y la simulación individual son públicos y no requieren clave ni sesión. `resultados/modelo_inferencia.joblib` está versionado: es el pipeline entrenado reducido para inferencia (~16 MB), sin datos de visitantes. El paquete completo `resultados/modelo_final.joblib` (~100 MB) se conserva solo en local y se ignora en Git. La app no almacena respuestas del formulario ni entradas del simulador; **evita introducir datos personales o identificables**. Infraestructura externa como Cloudflare puede mantener registros operativos según su configuración. La API limita el tamaño de cada solicitud de inferencia y los contenedores tienen límites de recursos, pero el acceso público permite tráfico y consumo de recursos por terceros.
 
 ### Ejecutar en local
 
 Con Docker disponible, desde esta carpeta:
 
 ```bash
-./scripts/rotar-clave.sh                 # guardar la clave en un gestor; no compartir capturas
-CARDIO_UID="$(id -u)" CARDIO_GID="$(id -g)" docker compose up -d --build
+docker compose up -d --build
 ```
 
-Abrir `http://127.0.0.1:8091`. El UID/GID local permite que el proceso no-root lea la clave privada montada en Docker sin cambiar permisos. En el servidor Ubuntu, se usa por defecto UID/GID 1000; confirmar que corresponda al dueño de `acceso/clave` con `id -u`/`id -g` antes de iniciar. La inferencia utiliza `resultados/modelo_inferencia.joblib`, que se descarga con el repositorio; el dashboard lee los demás archivos versionados en `resultados/`. Una cookie `Secure` puede requerir HTTPS para mantenerse en el navegador local según el navegador; para probar HTTP puro, usar un cliente de API o un túnel HTTPS, sin debilitar la cookie de producción.
+Abrir `http://127.0.0.1:8091` directamente. La inferencia utiliza `resultados/modelo_inferencia.joblib`, que se descarga con el repositorio; el dashboard lee los demás archivos versionados en `resultados/`.
 
 ### Publicar sin tocar otros proyectos
 
@@ -98,15 +97,14 @@ Primera instalación: en el servidor, crear **solo** este clon (no usar los dire
 git clone https://github.com/OrtegaMatias/cardioinsight.git ~/cardioinsight
 ```
 
-En el servidor, desde ese clon (la rotación imprime la clave nueva: conservarla en privado):
+En el servidor, actualizar únicamente este clon y su Compose (se solicita la contraseña `sudo` del servidor):
 
 ```bash
 cd ~/cardioinsight && git pull
-./scripts/rotar-clave.sh
 sudo docker compose up -d --build
 ```
 
-La ruta de Cloudflare Tunnel `cardioinsight.cvdi.cl` debe apuntar a `http://localhost:8091` y mantenerse separada de las rutas existentes. Leer la clave vigente **solo por SSH** con `cat ~/cardioinsight/acceso/clave`. Para rotarla manualmente, ejecutar `~/cardioinsight/scripts/rotar-clave.sh`; al cambiarla se invalidan las sesiones existentes. En el servidor está configurada la rotación diaria a las 05:17 mediante `17 5 * * * /home/namonaque/cardioinsight/scripts/rotar-clave.sh >/dev/null 2>&1`, sin modificar la rotación de NeuroLens a las 05:00. No publicar claves ni cookies.
+La ruta de Cloudflare Tunnel `cardioinsight.cvdi.cl` apunta a `http://localhost:8091` y se mantiene separada de las rutas existentes. La nueva versión no monta ni usa claves o sesiones. En el servidor se retiró exclusivamente el cron de rotación de CardioInsight; la rotación de NeuroLens a las 05:00 sigue intacta. Tras reconstruir los contenedores, puede borrarse el archivo antiguo `~/cardioinsight/acceso/clave`, que queda fuera del repositorio.
 
 Para regenerar el artefacto versionado tras entrenar de nuevo (sin volver a entrenar):
 
