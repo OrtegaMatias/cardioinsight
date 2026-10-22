@@ -1,13 +1,14 @@
 'use client';
 
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useMemo, useState } from 'react';
 import Chart from './Chart';
+import DecisionPanel from './DecisionPanel';
 import DataTable, { type Column } from './DataTable';
 import IndividualForm from './IndividualForm';
 import { cost, fixed, integer, money, percent, precision, prepare, recall, simulatedStrategies } from '@/lib/analytics';
 import type { Comparison, DashboardData, Sensitivity, Strategy } from '@/lib/types';
 
-const tabs = ['Resumen', '10 combinaciones', 'Mejor modelo', 'Costo y umbral', 'Sensibilidad', 'Calibración', 'ROC e iso-costo', 'Simulación individual'];
+const tabs = ['Resumen del experimento', 'Comparación de modelos', 'Modelo elegido', 'Costos y matriz', 'Sensibilidad', 'Calibración', 'ROC e iso-costo'];
 const palette = { teal: '#168c8c', navy: '#142d46', blue: '#5393ce', coral: '#e77669', amber: '#d99a27', gray: '#75879a' };
 const metric = (label: string, value: string, detail?: string) => <div className="metric" key={label}><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</div>;
 const float = (value: number | string) => typeof value === 'number' ? fixed(value) : value;
@@ -27,32 +28,37 @@ const strategyColumns: Column<Strategy>[] = [
 export default function Dashboard({ data, onLogout, onExpired, pending, error }: {
   data: DashboardData; onLogout: () => void; onExpired: () => void; pending: boolean; error: string;
 }) {
+  const [mode, setMode] = useState<'decision' | 'evidence' | 'individual'>('decision');
   const [tab, setTab] = useState(0);
   const [cfp, setCfp] = useState(data.resumen.c_fp);
   const [cfn, setCfn] = useState(data.resumen.c_fn);
-  const [threshold, setThreshold] = useState(0.5);
+  const [threshold, setThreshold] = useState(data.resumen.umbral_empirico);
+  const [exploring, setExploring] = useState(false);
   const prepared = useMemo(() => prepare(data), [data]);
   const simulated = useMemo(() => simulatedStrategies(prepared, threshold, cfp, cfn, data.resumen.mejor_modelo_B), [prepared, threshold, cfp, cfn, data.resumen.mejor_modelo_B]);
   const current = prepared.counts(threshold);
   const r = data.resumen;
   const bestStrategy = data.estrategias.reduce((best, item) => item.Costo_total < best.Costo_total ? item : best);
   const chartColors = [palette.teal, palette.blue, '#3ba58b', palette.coral, palette.gray];
-  function navigate(event: KeyboardEvent<HTMLButtonElement>, index: number) {
-    const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : -1;
-    if (next !== -1) { event.preventDefault(); setTab(next); document.getElementById(`tab-${next}`)?.focus(); }
-  }
 
-  return <div className="app-shell"><aside className="sidebar"><div className="sidebar-top"><span className="brand-mark">♡</span><span className="brand-name">Cardio<span>Insight</span><b>.</b></span></div>
-    <p className="sidebar-tagline">INTELIGENCIA CON CONTEXTO</p><div className="sidebar-rule" />
-    <span className="sidebar-label">EXPLORAR REPORTE</span><nav className="sidebar-nav" aria-label="Secciones del tablero">
-      {tabs.map((name, index) => <button key={name} className={tab === index ? 'nav-item active' : 'nav-item'} type="button" onClick={() => setTab(index)} aria-current={tab === index ? 'page' : undefined}><span className="nav-index">{String(index + 1).padStart(2, '0')}</span> {name}</button>)}
-    </nav><div className="sidebar-footer"><span>GRUPO 14 · PROYECTO ACADÉMICO</span><button type="button" className="logout-button" onClick={onLogout} disabled={pending}>Cerrar sesión ↗</button>{error && <p role="alert" className="error-banner">{error}</p>}</div>
-  </aside>
-  <div className="content-area"><header className="topbar"><div><span className="eyebrow">EXPLORADOR INTERACTIVO / BRFSS 2015</span><h1>Comprender el riesgo.<br /><em>Cuestionar el modelo.</em></h1><p>De la validación cruzada a las decisiones de umbral: cada cifra tiene una historia, y un límite.</p></div><div className="hero-art" aria-hidden="true"><span>+</span><svg viewBox="0 0 300 160" preserveAspectRatio="none"><path d="M0 89H65l16-32 19 68 26-92 17 58h32l13-23 17 21h95" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg><span>+</span></div></header>
-    <div className="warning-banner"><strong>Lectura responsable</strong><p>Reporte experimental con datos históricos; no es una herramienta clínica validada. No sirve para diagnosticar, descartar enfermedad ni indicar tratamientos. Los costos son supuestos de simulación, no costos clínicos observados. No guardamos datos ingresados.</p></div>
-    <div className="workspace"><div className="workspace-main"><div className="mobile-nav"><label htmlFor="section-select">Sección del reporte</label><select id="section-select" value={tab} onChange={event => setTab(Number(event.target.value))}>{tabs.map((name, index) => <option key={name} value={index}>{String(index + 1).padStart(2, '0')} · {name}</option>)}</select></div>
-      <div className="tab-strip" role="tablist" aria-label="Secciones del reporte">{tabs.map((name, index) => <button type="button" role="tab" id={`tab-${index}`} aria-controls="report-panel" aria-selected={tab === index} tabIndex={tab === index ? 0 : -1} key={name} onClick={() => setTab(index)} onKeyDown={event => navigate(event, index)}>{name}</button>)}</div>
-      <div id="report-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} tabIndex={0}>
+  return <div className="executive-shell">
+    <header className="site-header">
+      <div className="site-brand"><span className="brand-symbol" aria-hidden="true">＋</span><div><strong>cardio<span>insight</span></strong><small>ANALÍTICA PARA DECIDIR</small></div></div>
+      <div className="university-mark"><img src="/udd-logo.png" alt="Universidad del Desarrollo" width={640} height={160} /></div>
+      <nav className="site-nav" aria-label="Navegación principal">
+        <button type="button" className={mode === 'decision' ? 'active' : ''} aria-current={mode === 'decision' ? 'page' : undefined} onClick={() => setMode('decision')}>Decisión</button>
+        <button type="button" className={mode === 'evidence' ? 'active' : ''} aria-current={mode === 'evidence' ? 'page' : undefined} onClick={() => setMode('evidence')}>Evidencia</button>
+        <button type="button" className={mode === 'individual' ? 'active' : ''} aria-current={mode === 'individual' ? 'page' : undefined} onClick={() => setMode('individual')}>Simulación individual</button>
+      </nav>
+      <button type="button" className="signout" onClick={onLogout} disabled={pending}>Salir <span aria-hidden="true">↗</span></button>
+    </header>
+    {error && <p role="alert" className="error-banner">{error}</p>}
+    <main className="executive-main">
+      {mode === 'decision' && <DecisionPanel prepared={prepared} summary={r} costFP={cfp} costFN={cfn} threshold={threshold} exploring={exploring} onExploring={setExploring} onCostFP={setCfp} onCostFN={setCfn} onThreshold={setThreshold} onEvidence={() => { setTab(3); setMode('evidence'); }} />}
+      {mode === 'evidence' && <section className="evidence" aria-labelledby="evidence-title">
+        <div className="evidence-heading"><div><span className="eyebrow">RESPALDO DEL CERTAMEN</span><h1 id="evidence-title">La evidencia detrás de la decisión.</h1><p>Datos, validación, calibración y análisis de costos. La política reportable se seleccionó con train/CV; las curvas sobre test son retrospectivas.</p></div><div className="evidence-assumptions">Escenario activo <strong>FP {money(cfp)} · FN {money(cfn)} · corte {fixed(threshold, 2)}</strong><button type="button" onClick={() => setMode('decision')}>Ajustar en Decisión ↗</button></div></div>
+        <div className="evidence-selector"><label htmlFor="evidence-section">Sección de análisis</label><select id="evidence-section" value={tab} onChange={event => setTab(Number(event.target.value))}>{tabs.map((name, index) => <option key={name} value={index}>{String(index + 1).padStart(2, '0')} · {name}</option>)}</select></div>
+        <div id="report-panel" role="region" aria-label={tabs[tab]}>
         {tab === 0 && <section className="section-content"><div className="section-intro"><span className="eyebrow">01 / PANORAMA</span><h2>Resumen ejecutivo</h2><p>Datos de partida, diseño experimental y resultados reportados.</p></div>
           <div className="metric-grid four">{metric('Registros (tras limpieza)', integer(r.registros))}{metric('Clase minoritaria (enfermos)', percent(r.prop_minoritaria, 2))}{metric('Variables predictoras', String(r.predictoras))}{metric('Train / Test', `${integer(r.n_train)} / ${integer(r.n_test)}`)}</div>
           <div className="text-card"><h3>El problema detrás de la predicción</h3><p>Se explora a quién derivar para un estudio cardiológico. Un falso positivo supone derivar a una persona sin el evento (costo hipotético {money(r.c_fp)}); un falso negativo supone no detectar un caso (costo hipotético {money(r.c_fn)}).</p><p>{r.duplicados_eliminados ? `Se eliminaron ${integer(r.duplicados_encontrados)} filas idénticas.` : `Se detectaron ${integer(r.duplicados_encontrados)} filas idénticas y se conservaron porque la base no identifica personas.`} La partición fue 80/20 estratificada; la limpieza se ejecutó dentro del pipeline. La búsqueda de hiperparámetros usó {integer(r.n_sub)} filas, {r.n_iter} combinaciones por modelo y {r.cv_folds} folds.</p><p className="muted">Costo FP: aproximación a consulta cardiológica + ECG + ecocardiograma con arancel MLE FONASA 2025. Costo FN: supuesto gerencial conservador de 10×, no una tarifa clínica; el análisis cubre razones de 2× a 50×.</p></div>
@@ -75,7 +81,7 @@ export default function Dashboard({ data, onLogout, onExpired, pending, error }:
         {tab === 3 && <section className="section-content"><div className="section-intro"><span className="eyebrow">04 / SIMULADOR</span><h2>El costo de mover el umbral</h2><p>Explora los conteos de test con los costos hipotéticos y el umbral elegidos. Los datos de test ilustran, pero no seleccionan el umbral reportable.</p></div><div className="metric-grid four">{metric('Recall', percent(recall(current)))}{metric('Precisión', percent(precision(current)))}{metric('Costo total hipotético', money(cost(current, cfp, cfn)))}{metric('Ahorro vs. corte 0,5', money(simulated.base - cost(current, cfp, cfn)))}</div>
           <div className="two-columns cost-layout"><Chart title="Costo total estimado según umbral" description={`La línea de mínimo en test (${fixed(simulated.minPoint.threshold, 2)}) es solo retrospectiva. El umbral seleccionado con CV/train es ${fixed(r.umbral_empirico, 2)}.`} xTitle="Umbral de decisión" yTitle="Costo hipotético (CLP)" layout={{ hovermode: 'x unified' }} height={440} traces={[
             { type: 'scatter', mode: 'lines', name: 'Costo total', x: prepared.curve.map(point => point.threshold), y: prepared.curve.map(point => cost(point.counts, cfp, cfn)), line: { color: palette.teal, width: 3 }, fill: 'tozeroy', fillcolor: 'rgba(22,140,140,.08)' },
-            ...([[0.5, 'Corte 0,5', palette.gray], [simulated.theoretical, 'Teórico p*', '#3ba58b'], [simulated.minPoint.threshold, 'Mínimo test', palette.coral], [r.umbral_empirico, 'CV/train', palette.blue], [threshold, 'Manual', palette.navy]] as [number, string, string][]).map(([point, name, color]) => ({ type: 'scatter' as const, mode: 'lines' as const, name, x: [point, point], y: [0, Math.max(...prepared.curve.map(row => cost(row.counts, cfp, cfn)))], line: { color, dash: 'dash' as const, width: 2 }, hoverinfo: 'name' as const })),
+            ...([[0.5, 'Corte 0,5', palette.gray], [simulated.theoretical, 'Teórico p*', '#3ba58b'], [simulated.minPoint.threshold, 'Mínimo test', palette.coral], [r.umbral_empirico, 'CV/train', palette.blue], [threshold, 'Corte actual', palette.navy]] as [number, string, string][]).map(([point, name, color]) => ({ type: 'scatter' as const, mode: 'lines' as const, name, x: [point, point], y: [0, Math.max(...prepared.curve.map(row => cost(row.counts, cfp, cfn)))], line: { color, dash: 'dash' as const, width: 2 }, hoverinfo: 'name' as const })),
           ]} />
           <div><h3>Matriz de confusión · corte {fixed(threshold, 2)}</h3><div className="matrix"><span className="matrix-corner">Real ↓ / Predicho →</span><span>Predicho sin evento</span><span>Predicho con evento</span><span>Real sin evento</span><div className="matrix-cell matrix-0"><strong>VN · {integer(current.vn)}</strong><small>Sin costo directo</small></div><div className="matrix-cell matrix-1"><strong>FP · {integer(current.fp)}</strong><small>{money(cfp * current.fp)}</small></div><span>Real con evento</span><div className="matrix-cell matrix-2"><strong>FN · {integer(current.fn)}</strong><small>{money(cfn * current.fn)}</small></div><div className="matrix-cell matrix-3"><strong>VP · {integer(current.vp)}</strong><small>Sin costo directo</small></div></div><p className="muted">Costo FP {money(cfp * current.fp)} · costo FN {money(cfn * current.fn)}.</p></div></div>
           <h3>Estrategias con los costos actuales</h3><DataTable rows={simulated.rows} columns={strategyColumns} caption="Comparación hipotética según los costos actuales" /><div className="notice"><strong>Test no decide el umbral reportable.</strong> El mínimo de la curva ({fixed(simulated.minPoint.threshold, 2)}) se calculó retrospectivamente sobre test solo para ilustrar. El umbral empírico reportable fue seleccionado con validación cruzada usando únicamente train ({fixed(r.umbral_empirico, 2)}); test confirma su resultado una vez. El costo teórico presupone probabilidades calibradas.</div>
@@ -91,31 +97,27 @@ export default function Dashboard({ data, onLogout, onExpired, pending, error }:
           <div className="notice">Probabilidad mínima del modelo: {fixed(prepared.min)} · media: {fixed(prepared.mean)} · tasa real: {fixed(prepared.prevalence)}. Si la mínima supera p* de referencia ({fixed(r.p_star)}), el corte teórico clasifica todos como positivos: es un síntoma de falta de calibración, no un error del cálculo. Se evalúa también un umbral empírico train/CV.</div>
         </section>}
         {tab === 6 && <section className="section-content"><div className="section-intro"><span className="eyebrow">07 / GEOMETRÍA DE COSTOS</span><h2>ROC e iso-costo</h2><p>Geometría retrospectiva sobre test, como en el notebook del curso. La recta de iso-costo depende de los supuestos del panel y no autoriza seleccionar un umbral sobre test.</p></div>
-          <div className="metric-grid three">{metric('AUC sobre test', fixed(prepared.auc))}{metric('Pendiente de iso-costo', fixed(simulated.slope, 2))}{metric('Punto manual · recall', percent(recall(current)))}</div>
-          <Chart title="ROC del modelo e iso-costo" description="Todos los puntos ROC originales se muestran con trazado acelerado; los marcadores identifican el corte manual y el mínimo retrospectivo." xTitle="FPR (1 − especificidad)" yTitle="TPR (recall)" height={530} layout={{ xaxis: { title: { text: 'FPR (1 − especificidad)' }, range: [0, 1] }, yaxis: { title: { text: 'TPR (recall)' }, range: [0, 1.02] } }} traces={[
+          <div className="metric-grid three">{metric('AUC sobre test', fixed(prepared.auc))}{metric('Pendiente de iso-costo', fixed(simulated.slope, 2))}{metric('Corte actual · recall', percent(recall(current)))}</div>
+          <Chart title="ROC del modelo e iso-costo" description="Todos los puntos ROC originales se muestran con trazado acelerado; los marcadores identifican el corte actual y el mínimo retrospectivo." xTitle="FPR (1 − especificidad)" yTitle="TPR (recall)" height={530} layout={{ xaxis: { title: { text: 'FPR (1 − especificidad)' }, range: [0, 1] }, yaxis: { title: { text: 'TPR (recall)' }, range: [0, 1.02] } }} traces={[
             { type: 'scattergl', mode: 'lines', name: `ROC (AUC = ${fixed(prepared.auc)})`, x: prepared.roc.map(point => point.fpr), y: prepared.roc.map(point => point.tpr), line: { color: palette.teal, width: 3 } },
             { type: 'scatter', mode: 'lines', name: 'Azar', x: [0, 1], y: [0, 1], line: { color: palette.gray, dash: 'dash' } },
             { type: 'scatter', mode: 'lines', name: `Iso-costo (m = ${fixed(simulated.slope, 2)})`, x: [0, 1], y: [simulated.rocMinimum.tpr - simulated.slope * simulated.rocMinimum.fpr, simulated.rocMinimum.tpr + simulated.slope * (1 - simulated.rocMinimum.fpr)], line: { color: palette.navy, dash: 'dot', width: 2 } },
             { type: 'scatter', mode: 'markers', name: 'Mínimo retrospectivo', x: [simulated.rocMinimum.fpr], y: [simulated.rocMinimum.tpr], marker: { size: 14, symbol: 'circle-open', color: palette.coral, line: { width: 3 } } },
-            { type: 'scatter', mode: 'markers', name: `Manual (${fixed(threshold, 2)})`, x: [current.fp / prepared.negative], y: [recall(current)], marker: { size: 14, symbol: 'star', color: palette.amber } },
+            { type: 'scatter', mode: 'markers', name: `Corte actual (${fixed(threshold, 2)})`, x: [current.fp / prepared.negative], y: [recall(current)], marker: { size: 14, symbol: 'star', color: palette.amber } },
           ]} />
           <p className="notice">La pendiente es C_FP × N / (C_FN × P) = {fixed(simulated.slope, 2)}. Al aumentar el costo de FN, la recta se aplana y favorece un recall mayor. La ubicación del mínimo ROC proviene de test y es solo retrospectiva; el umbral reportable es {fixed(r.umbral_empirico, 2)} (train/CV).</p>
           <DataTable caption="Puntos de referencia de ROC en test" rows={[
-            { Escenario: 'Manual', Umbral: threshold, FPR: current.fp / prepared.negative, TPR: recall(current) },
+            { Escenario: 'Corte actual', Umbral: threshold, FPR: current.fp / prepared.negative, TPR: recall(current) },
             { Escenario: 'Referencia 0,5', Umbral: 0.5, FPR: prepared.counts(0.5).fp / prepared.negative, TPR: recall(prepared.counts(0.5)) },
             { Escenario: 'Teórico p*', Umbral: simulated.theoretical, FPR: prepared.counts(simulated.theoretical).fp / prepared.negative, TPR: recall(prepared.counts(simulated.theoretical)) },
             { Escenario: 'Empírico train/CV', Umbral: r.umbral_empirico, FPR: prepared.counts(r.umbral_empirico).fp / prepared.negative, TPR: recall(prepared.counts(r.umbral_empirico)) },
             { Escenario: 'Mínimo retrospectivo ROC', Umbral: simulated.rocMinimum.threshold, FPR: simulated.rocMinimum.fpr, TPR: simulated.rocMinimum.tpr },
           ]} columns={[{ key: 'Escenario', label: 'Escenario' }, ...(['Umbral', 'FPR', 'TPR'] as const).map(key => ({ key, label: key, format: (value: number | string) => fixed(Number(value)) }))]} />
         </section>}
-        {tab === 7 && <IndividualForm validatedThreshold={r.umbral_empirico} manualThreshold={threshold} onExpired={onExpired} />}
-      </div>
-    </div><aside className="controls" aria-label="Controles de simulación"><div className="controls-heading"><span className="eyebrow">PANEL DE SIMULACIÓN</span><h2>Ajusta los supuestos</h2><p>Los cambios modifican las secciones «Costo y umbral» y «ROC e iso-costo»; en el formulario individual puedes optar por el corte manual.</p></div>
-      <div className="control-block"><label htmlFor="cost-fp">01 · Costo de falso positivo <strong>{money(cfp)}</strong></label><input id="cost-fp" type="range" min={25000} max={300000} step={5000} value={cfp} onChange={event => setCfp(Number(event.target.value))} /><div className="range-ends"><span>CLP 25.000</span><span>CLP 300.000</span></div><small>Derivación innecesaria · hipotético</small></div>
-      <div className="control-block"><label htmlFor="cost-fn">02 · Costo de falso negativo <strong>{money(cfn)}</strong></label><input id="cost-fn" type="range" min={200000} max={10000000} step={50000} value={cfn} onChange={event => setCfn(Number(event.target.value))} /><div className="range-ends"><span>CLP 200.000</span><span>CLP 10.000.000</span></div><small>Caso no detectado · hipotético</small></div>
-      <div className="theoretical"><span>UMBRAL TEÓRICO · p*</span><strong>{fixed(simulated.theoretical)}</strong><small>C_FP / (C_FP + C_FN), supone calibración.</small></div>
-      <div className="control-block"><label htmlFor="decision-threshold">03 · Umbral de decisión <strong>{fixed(threshold, 2)}</strong></label><input id="decision-threshold" type="range" min={0} max={1} step={0.01} value={threshold} onChange={event => setThreshold(Number(event.target.value))} /><div className="range-ends"><span>0,00</span><span>1,00</span></div><small>Control interactivo, no reentrena el modelo.</small></div>
-      <div className="control-note">Umbral empírico reportable (train/CV): <strong>{fixed(r.umbral_empirico, 2)}</strong>. Mínimo en test: ilustración retrospectiva, no decisión válida.</div>
-    </aside></div><footer className="footer">CardioInsight · Grupo 14 · Joaquín Rivas y Matías Ortega · {r.base} · Objetivo: {r.variable_objetivo} · Semilla: {r.semilla}. Sin almacenamiento de entradas. No utilizar para diagnóstico o decisiones de tratamiento.</footer></div>
+        </div>
+      </section>}
+      {mode === 'individual' && <div className="individual-view"><IndividualForm validatedThreshold={r.umbral_empirico} manualThreshold={threshold} onExpired={onExpired} /></div>}
+    </main>
+    <footer className="site-footer"><span>CardioInsight · Grupo 14 · Joaquín Rivas y Matías Ortega</span><span>BRFSS 2015 · Prototipo académico, no diagnóstico ni indicación de tratamiento.</span></footer>
   </div>;
 }

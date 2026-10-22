@@ -77,7 +77,7 @@ export default function IndividualForm({ validatedThreshold, manualThreshold, on
       </div>
       <label className="form-field">Criterio para la señal
         <select value={useManualThreshold ? 'manual' : 'validated'} onChange={event => { setUseManualThreshold(event.target.value === 'manual'); setPrediction(null); }}>
-          <option value="validated">Umbral validado en train/CV ({fixed(validatedThreshold, 2)})</option>
+          <option value="validated">Umbral seleccionado en train/CV ({fixed(validatedThreshold, 2)})</option>
           <option value="manual">Umbral experimental del panel ({fixed(manualThreshold, 2)})</option>
         </select>
       </label>

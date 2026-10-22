@@ -82,17 +82,17 @@ export default function Home() {
   }
 
   if (status === 'ready' && dashboard) return <Dashboard data={dashboard} onLogout={signOut} onExpired={sessionExpired} pending={pending} error={error} />;
-  return <main className="gate"><div className="gate-decor" aria-hidden="true"><span className="pulse-icon">♡</span><span className="gate-decor-caption">DATOS · CONTEXTO · DECISIONES</span></div><div className="gate-panel">
+  return <main className="gate"><div className="gate-decor"><img src="/udd-logo.png" alt="Universidad del Desarrollo" width={640} height={160} className="gate-university" /><span className="gate-decor-caption">DATOS · CONTEXTO · DECISIONES</span></div><div className="gate-panel">
     <span className="eyebrow">LABORATORIO DE ANALÍTICA PREDICTIVA</span>
     <h1>Cardio<span>Insight</span><span className="brand-dot">.</span></h1>
-    <p className="gate-lead">Comprender modelos de riesgo cardiovascular requiere más que una cifra. Explora la evidencia, los umbrales y sus límites.</p>
+    <p className="gate-lead">¿A quién derivar para evaluación? Compara escenarios hipotéticos de costos y detección con datos históricos, sin convertirlos en recomendaciones clínicas.</p>
     {status === 'loading' ? <p role="status">Verificando acceso…</p> : <>
       <div className="gate-divider" />
-      <p className="gate-description">Acceso privado · Ingresa la clave vigente para consultar el reporte interactivo.</p>
+      <p className="gate-description">Acceso privado · Ingresa la clave vigente para explorar el panel de decisiones.</p>
       <form onSubmit={signIn} className="gate-form">
         <label htmlFor="access-key">Clave de acceso</label>
         <input id="access-key" type="password" autoComplete="off" value={key} onChange={event => setKey(event.target.value)} required disabled={pending} placeholder="Ingresa tu clave" />
-        <button type="submit" disabled={pending || !key.trim()}>{pending ? 'Accediendo…' : 'Explorar reporte'} <span aria-hidden="true">↗</span></button>
+        <button type="submit" disabled={pending || !key.trim()}>{pending ? 'Accediendo…' : 'Abrir panel'} <span aria-hidden="true">↗</span></button>
       </form>
       {error && <p role="alert" className="error-banner">{error} {status === 'error' && <button type="button" className="text-button" onClick={() => window.location.reload()}>Reintentar conexión</button>}</p>}
       <p className="privacy-note">Esta herramienta es educativa. No diagnostica, no indica tratamientos y no conserva los datos ingresados en el formulario.</p>
